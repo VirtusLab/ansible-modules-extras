@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # (c) 2013, Adam Miller (maxamillion@fedoraproject.org)
+# (c) 2015, Jakub Kramarz (jkramarz@virtuslab.com)
 #
 # This file is part of Ansible
 #
@@ -41,6 +42,11 @@ options:
       - "Rich rule to add/remove to/from firewalld."
     required: false
     default: null
+  masquerade:
+    description:
+      - "Anything, just to indicate operation on masquerade configuration"
+    required: false
+    default: null
   zone:
     description:
       - 'The firewalld zone to add/remove to/from (NOTE: default zone can be configured per system but "public" is default from upstream. Available choices can be extended based on per-system configs, listed here are "out of the box" defaults).'
@@ -78,6 +84,7 @@ EXAMPLES = '''
 - firewalld: port=161-162/udp permanent=true state=enabled
 - firewalld: zone=dmz service=http permanent=true state=enabled
 - firewalld: rich_rule='rule service name="ftp" audit limit value="1/m" accept' permanent=true state=enabled
+- firewalld: zone=public masquerade=yes permanent=true state=enabled
 '''
 
 import os
@@ -200,6 +207,34 @@ def set_rich_rule_disabled_permanent(zone, rule):
     fw_settings.removeRichRule(rule)
     fw_zone.update(fw_settings)
 
+####################
+# masquerade handling
+#
+def get_masquerade_enabled(zone):
+    return fw.queryMasquerade(zone)
+
+def set_masquerade_enabled(zone):
+    fw.addMasquerade(zone)
+
+def set_masquerade_disabled(zone):
+    fw.removeMasquerade(zone)
+
+def get_masquerade_enabled_permanent(zone):
+    fw_zone = fw.config().getZoneByName(zone)
+    fw_settings = fw_zone.getSettings()
+    return fw_settings.getMasquerade()
+
+def set_masquerade_enabled_permanent(zone):
+    fw_zone = fw.config().getZoneByName(zone)
+    fw_settings = fw_zone.getSettings()
+    fw_settings.setMasquerade(True)
+    fw_zone.update(fw_settings)
+
+def set_masquerade_disabled_permanent(zone):
+    fw_zone = fw.config().getZoneByName(zone)
+    fw_settings = fw_zone.getSettings()
+    fw_settings.setMasquerade(False)
+    fw_zone.update(fw_settings)
 
 def main():
 
@@ -208,6 +243,7 @@ def main():
             service=dict(required=False,default=None),
             port=dict(required=False,default=None),
             rich_rule=dict(required=False,default=None),
+            masquerade=dict(required=False,default=None),
             zone=dict(required=False,default=None),
             permanent=dict(type='bool',required=True),
             immediate=dict(type='bool',default=False),
@@ -228,6 +264,7 @@ def main():
     changed=False
     msgs = []
     service = module.params['service']
+    masquerade = module.params['masquerade']
     rich_rule = module.params['rich_rule']
 
     if module.params['port'] != None:
@@ -262,9 +299,11 @@ def main():
         modification_count += 1
     if rich_rule != None:
         modification_count += 1
+    if masquerade != None:
+        modification_count += 1
 
     if modification_count > 1:
-        module.fail_json(msg='can only operate on port, service or rich_rule at once')
+        module.fail_json(msg='can only operate on port, service, rich_rule or masquerade at once')
 
     if service != None:
         if permanent:
@@ -391,8 +430,48 @@ def main():
         if changed == True:
             msgs.append("Changed rich_rule %s to %s" % (rich_rule, desired_state))
 
-    module.exit_json(changed=changed, msg=', '.join(msgs))
+    if masquerade != None:
+        if permanent:
+            is_enabled = get_masquerade_enabled_permanent(zone)
+            msgs.append('Permanent operation')
 
+            if desired_state == "enabled":
+                if is_enabled == False:
+                    if module.check_mode:
+                        module.exit_json(changed=True)
+
+                    set_masquerade_enabled_permanent(zone)
+                    changed=True
+            elif desired_state == "disabled":
+                if is_enabled == True:
+                    if module.check_mode:
+                        module.exit_json(changed=True)
+
+                    set_masquerade_disabled_permanent(zone)
+                    changed=True
+        if immediate or not permanent:
+            is_enabled = get_masquerade_enabled(zone)
+            msgs.append('Non-permanent operation')
+
+            if desired_state == "enabled":
+                if is_enabled == False:
+                    if module.check_mode:
+                        module.exit_json(changed=True)
+
+                    set_masquerade_enabled(zone)
+                    changed=True
+            elif desired_state == "disabled":
+                if is_enabled == True:
+                    if module.check_mode:
+                        module.exit_json(changed=True)
+
+                    set_masquerade_disabled(zone)
+                    changed=True
+
+        if changed == True:
+            msgs.append("Changed masquerade to %s" % (desired_state))
+
+    module.exit_json(changed=changed, msg=', '.join(msgs))
 
 #################################################
 # import module snippets
