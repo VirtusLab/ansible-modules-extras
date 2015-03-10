@@ -77,6 +77,12 @@ options:
       - "The amount of time the rule should be in effect for when non-permanent."
     required: false
     default: 0
+  reload:
+    description:
+      - 'Perform firewall configuration reload after applying changes. Complete reload also looses state information.'
+    required: false
+    default: null
+    choices: [ "config", "complete" ]
 notes:
   - Not tested on any Debian based system.
 requirements: [ 'firewalld >= 0.2.11' ]
@@ -90,7 +96,7 @@ EXAMPLES = '''
 - firewalld: zone=dmz service=http permanent=true state=enabled
 - firewalld: rich_rule='rule service name="ftp" audit limit value="1/m" accept' permanent=true state=enabled
 - firewalld: zone=public masquerade=yes permanent=true state=enabled
-- firewalld: zone=trusted interface=tun0 state=enabled
+- firewalld: zone=trusted interface=tun0 state=enabled reload=complete
 '''
 
 import os
@@ -277,6 +283,15 @@ def set_interface_disabled_permanent(zone, interface):
     fw_settings.removeInterface(interface)
     fw_zone.update(fw_settings)
 
+####################
+# reload handling
+#
+def do_reload():
+    fw.reload()
+
+def do_complete_reload():
+    fw.complete_reload()
+
 def main():
 
     module = AnsibleModule(
@@ -291,6 +306,7 @@ def main():
             immediate=dict(type='bool',default=False),
             state=dict(choices=['enabled', 'disabled'], required=True),
             timeout=dict(type='int',required=False,default=0),
+            reload=dict(choices=['config', 'complete'], required=False,default=None),
         ),
         supports_check_mode=True
     )
@@ -309,6 +325,7 @@ def main():
     masquerade = module.params['masquerade']
     rich_rule = module.params['rich_rule']
     interface = module.params['interface']
+    reload = module.params['reload']
 
     if module.params['port'] != None:
         port, protocol = module.params['port'].split('/')
@@ -556,6 +573,16 @@ def main():
 
         if changed == True:
             msgs.append("Changed interface %s to %s" % (interface, desired_state))
+
+    if reload != None:
+        if module.check_mode:
+            module.exit_json(changed=True)
+        if reload == "complete":
+            do_complete_reload()
+        else:
+            do_reload()
+        changed=True
+        msgs.append("Configuration reloaded")
 
     module.exit_json(changed=changed, msg=', '.join(msgs))
 
