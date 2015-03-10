@@ -352,20 +352,18 @@ def main():
         module.fail_json(msg="firewalld connection can't be established,\
                 version likely too old. Requires firewalld >= 2.0.11")
 
-    modification_count = 0
-    if service != None:
-        modification_count += 1
-    if port != None:
-        modification_count += 1
-    if rich_rule != None:
-        modification_count += 1
-    if masquerade != None:
-        modification_count += 1
-    if interface != None:
-        modification_count += 1
+    exclusive_operations = [ 'service', 'port', 'rich_rule', 'masquerade', 'interface' ]
+    modification_count = sum(
+        map(
+            lambda x: module.params[x] != None,
+            exclusive_operations
+        )
+    )
 
     if modification_count > 1:
-        module.fail_json(msg='can only operate on port, service, rich_rule, masquerade or interface at once')
+        module.fail_json(msg='can only simultaneously operate on one of the following: %s' % (', '.join(exclusive_operations)))
+
+
 
     if service != None:
         if permanent:
