@@ -64,7 +64,7 @@ options:
     default: null
   forward:
     description:
-      - "Anything, just to indicate operation on forwarding configuration"
+      - "Name of a port to forward from to add/remove to/from firewalld must be in the form PORT/PROTOCOL"
     required: false
     default: null
   to_addr:
@@ -111,7 +111,7 @@ options:
 notes:
   - Not tested on any Debian based system.
 requirements: [ 'firewalld >= 0.2.11' ]
-author: '"Adam Miller (@maxamillion)" <maxamillion@fedoraproject.org>'
+author: '"Adam Miller (@maxamillion)" <maxamillion@fedoraproject.org>', '"Jakub Kramarz (@jkramarz)" <jkramarz@virtuslab.com>'
 '''
 
 EXAMPLES = '''
@@ -122,6 +122,7 @@ EXAMPLES = '''
 - firewalld: rich_rule='rule service name="ftp" audit limit value="1/m" accept' permanent=true state=enabled
 - firewalld: zone=public masquerade=yes permanent=true state=enabled
 - firewalld: zone=trusted interface=tun0 state=enabled reload=complete
+- firewalld: forward=443/tcp to_addr=10.0.1.1 to_port=443 permanent=yes immediate=yes state=enabled
 '''
 
 import os
@@ -216,7 +217,7 @@ def action(
                     else:
                         permanent_disable(*args)
             changed = True
-    else:
+    if immediate or not permanent:
         msgs.append('Non-permanent operation')
         if running_query_args != None:
             is_enabled = running_query(*args_query)
@@ -257,6 +258,7 @@ def main():
             to_port=dict(required=False,default=None),
             to_addr=dict(required=False,default=None),
             zone=dict(required=False,default=None),
+            forward=dict(required=False,default=None),
             permanent=dict(type='bool',required=True),
             immediate=dict(type='bool',default=False),
             state=dict(choices=['enabled', 'disabled'], required=True),
@@ -277,14 +279,13 @@ def main():
     changed=False
     msgs = []
 
-
     service = module.params['service']
     masquerade = module.params['masquerade']
     rich_rule = module.params['rich_rule']
     interface = module.params['interface']
     source = module.params['source']
     to_addr = module.params['to_addr']
-    to_port = module.params['to_port']
+    to_port = str(module.params['to_port'])
     icmp_block = module.params['icmp_block']
     reload = module.params['reload']
 
@@ -294,6 +295,13 @@ def main():
             module.fail_json(msg='improper port format (missing protocol?)')
     else:
         port = None
+
+    if module.params['forward'] != None:
+        forward_port, forward_protocol = module.params['forward'].split('/')
+        if forward_protocol == None:
+            module.fail_json(msg='improper forward format (missing protocol?)')
+    else:
+        forward_port = None
 
     if module.params['zone'] != None:
         zone = module.params['zone']
@@ -326,7 +334,7 @@ def main():
 
 
     def perform_action(**kwargs):
-        action(msgs, module, **kwargs)
+        return action(msgs, module, **kwargs)
 
     if service != None:
         changed = perform_action(
@@ -379,9 +387,9 @@ def main():
     if masquerade != None:
         changed = perform_action(
             message                = "Changed masquerade to %s" % (desired_state),
-            args                   = (zone),
+            args                   = [zone],
 
-            permanent_query        = lambda *x: permanent_config_query('queryMasquerade', *x),
+            permanent_query        = lambda *x: permanent_config_query('getMasquerade', *x),
             running_query          = fw.queryMasquerade,
 
             permanent_enable       = lambda *x: permanent_config_change('setMasquerade', *x),
@@ -439,10 +447,10 @@ def main():
             running_disable        = fw.removeIcmpBlock
         )
 
-    if forward != None:
+    if forward_port != None:
         changed = perform_action(
-            message                = "Changed forward %s/%s from %s to %s to state %s" % (port, protocol, to_port, to_addr, desired_state),
-            args                   = (zone, port, protocol, to_port, to_addr),
+            message                = "Changed forward from %s/%s to %s:%s to state %s" % (forward_port, forward_protocol, to_addr, to_port, desired_state),
+            args                   = (zone, forward_port, forward_protocol, to_port, to_addr),
 
             permanent_query        = lambda *x: permanent_config_query('queryForwardPort', *x),
             running_query          = fw.queryForwardPort,
@@ -451,7 +459,7 @@ def main():
             permanent_disable      = lambda *x: permanent_config_change('removeForwardPort', *x),
 
             running_enable         = fw.addForwardPort,
-            running_enable_args    = (zone, port, protocol, to_port, to_addr, timeout),
+            running_enable_args    = (zone, forward_port, forward_protocol, to_port, to_addr, timeout),
             running_disable        = fw.removeForwardPort
         )
 
