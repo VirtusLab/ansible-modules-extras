@@ -47,6 +47,11 @@ options:
       - "Anything, just to indicate operation on masquerade configuration"
     required: false
     default: null
+  interface:
+    description:
+      - "Name of a interface to add/remove to/from firewalld"
+    required: false
+    default: null
   zone:
     description:
       - 'The firewalld zone to add/remove to/from (NOTE: default zone can be configured per system but "public" is default from upstream. Available choices can be extended based on per-system configs, listed here are "out of the box" defaults).'
@@ -85,6 +90,7 @@ EXAMPLES = '''
 - firewalld: zone=dmz service=http permanent=true state=enabled
 - firewalld: rich_rule='rule service name="ftp" audit limit value="1/m" accept' permanent=true state=enabled
 - firewalld: zone=public masquerade=yes permanent=true state=enabled
+- firewalld: zone=trusted interface=tun0 state=enabled
 '''
 
 import os
@@ -236,6 +242,41 @@ def set_masquerade_disabled_permanent(zone):
     fw_settings.setMasquerade(False)
     fw_zone.update(fw_settings)
 
+####################
+# interface handling
+#
+def get_interface_enabled(zone):
+    if interface in fw.getInterfaces(zone):
+        return True
+    else:
+        return False
+
+def set_interface_enabled(zone):
+    fw.addInterface(zone)
+
+def set_interface_disabled(zone):
+    fw.removeInterface(zone)
+
+def get_interface_enabled_permanent(zone, interface):
+    fw_zone = fw.config().getZoneByName(zone)
+    fw_settings = fw_zone.getSettings()
+    if interface in fw_settings.getInterfaces():
+        return True
+    else:
+        return False
+
+def set_interface_enabled_permanent(zone, interface):
+    fw_zone = fw.config().getZoneByName(zone)
+    fw_settings = fw_zone.getSettings()
+    fw_settings.addInterface(interface)
+    fw_zone.update(fw_settings)
+
+def set_interface_disabled_permanent(zone, interface):
+    fw_zone = fw.config().getZoneByName(zone)
+    fw_settings = fw_zone.getSettings()
+    fw_settings.removeInterface(interface)
+    fw_zone.update(fw_settings)
+
 def main():
 
     module = AnsibleModule(
@@ -244,6 +285,7 @@ def main():
             port=dict(required=False,default=None),
             rich_rule=dict(required=False,default=None),
             masquerade=dict(required=False,default=None),
+            interface=dict(required=False,default=None),
             zone=dict(required=False,default=None),
             permanent=dict(type='bool',required=True),
             immediate=dict(type='bool',default=False),
@@ -266,6 +308,7 @@ def main():
     service = module.params['service']
     masquerade = module.params['masquerade']
     rich_rule = module.params['rich_rule']
+    interface = module.params['interface']
 
     if module.params['port'] != None:
         port, protocol = module.params['port'].split('/')
@@ -301,9 +344,11 @@ def main():
         modification_count += 1
     if masquerade != None:
         modification_count += 1
+    if interface != None:
+        modification_count += 1
 
     if modification_count > 1:
-        module.fail_json(msg='can only operate on port, service, rich_rule or masquerade at once')
+        module.fail_json(msg='can only operate on port, service, rich_rule, masquerade or interface at once')
 
     if service != None:
         if permanent:
@@ -470,6 +515,47 @@ def main():
 
         if changed == True:
             msgs.append("Changed masquerade to %s" % (desired_state))
+
+    if interface != None:
+        if permanent:
+            is_enabled = get_interface_enabled_permanent(zone, interface)
+            msgs.append('Permanent operation')
+
+            if desired_state == "enabled":
+                if is_enabled == False:
+                    if module.check_mode:
+                        module.exit_json(changed=True)
+
+                    set_interface_enabled_permanent(zone, interface)
+                    changed=True
+            elif desired_state == "disabled":
+                if is_enabled == True:
+                    if module.check_mode:
+                        module.exit_json(changed=True)
+
+                    set_interface_disabled_permanent(zone, interface)
+                    changed=True
+        if immediate or not permanent:
+            is_enabled = get_interface_enabled(zone, interface)
+            msgs.append('Non-permanent operation')
+
+            if desired_state == "enabled":
+                if is_enabled == False:
+                    if module.check_mode:
+                        module.exit_json(changed=True)
+
+                    set_interface_enabled(zone, interface)
+                    changed=True
+            elif desired_state == "disabled":
+                if is_enabled == True:
+                    if module.check_mode:
+                        module.exit_json(changed=True)
+
+                    set_interface_disabled(zone, interface)
+                    changed=True
+
+        if changed == True:
+            msgs.append("Changed interface %s to %s" % (interface, desired_state))
 
     module.exit_json(changed=changed, msg=', '.join(msgs))
 
