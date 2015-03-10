@@ -47,9 +47,34 @@ options:
       - "Anything, just to indicate operation on masquerade configuration"
     required: false
     default: null
+  source:
+    description:
+      - "Source address to add/remove to/from firewalld"
+    required: false
+    default: null
   interface:
     description:
       - "Name of a interface to add/remove to/from firewalld"
+    required: false
+    default: null
+  icmp_block:
+    description:
+      - "Name of a ICMP packet type to block/unblock."
+    required: false
+    default: null
+  forward:
+    description:
+      - "Anything, just to indicate operation on forwarding configuration"
+    required: false
+    default: null
+  to_addr:
+    description:
+      - "Forward destination IP address"
+    required: false
+    default: null
+  to_port:
+    description:
+      - "Forward destination port"
     required: false
     default: null
   zone:
@@ -112,176 +137,21 @@ try:
 except ImportError:
     HAS_FIREWALLD = False
 
+
 ################
-# port handling
+# helper functions
 #
-def get_port_enabled(zone, port_proto):
-    if port_proto in fw.getPorts(zone):
-        return True
-    else:
-        return False
 
-def set_port_enabled(zone, port, protocol, timeout):
-    fw.addPort(zone, port, protocol, timeout)
-
-def set_port_disabled(zone, port, protocol):
-    fw.removePort(zone, port, protocol)
-
-def get_port_enabled_permanent(zone, port_proto):
+def permanent_config_change(method, zone, *args):
     fw_zone = fw.config().getZoneByName(zone)
     fw_settings = fw_zone.getSettings()
-    if tuple(port_proto) in fw_settings.getPorts():
-        return True
-    else:
-        return False
-
-def set_port_enabled_permanent(zone, port, protocol):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    fw_settings.addPort(port, protocol)
+    getattr(fw_settings, method)(*args)
     fw_zone.update(fw_settings)
 
-def set_port_disabled_permanent(zone, port, protocol):
+def permanent_config_query(method, zone, *args):
     fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    fw_settings.removePort(port, protocol)
-    fw_zone.update(fw_settings)
-    
-
-####################
-# service handling
-#
-def get_service_enabled(zone, service):
-    if service in fw.getServices(zone):
-        return True
-    else:
-        return False
-
-def set_service_enabled(zone, service, timeout):
-    fw.addService(zone, service, timeout)
-
-def set_service_disabled(zone, service):
-    fw.removeService(zone, service)
-
-def get_service_enabled_permanent(zone, service):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    if service in fw_settings.getServices():
-        return True
-    else:
-        return False
-
-def set_service_enabled_permanent(zone, service):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    fw_settings.addService(service)
-    fw_zone.update(fw_settings)
-
-def set_service_disabled_permanent(zone, service):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    fw_settings.removeService(service)
-    fw_zone.update(fw_settings)
-    
-
-####################
-# rich rule handling
-#
-def get_rich_rule_enabled(zone, rule):
-    if rule in fw.getRichRules(zone):
-        return True
-    else:
-        return False
-
-def set_rich_rule_enabled(zone, rule, timeout):
-    fw.addRichRule(zone, rule, timeout)
-
-def set_rich_rule_disabled(zone, rule):
-    fw.removeRichRule(zone, rule)
-
-def get_rich_rule_enabled_permanent(zone, rule):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    if rule in fw_settings.getRichRules():
-        return True
-    else:
-        return False
-
-def set_rich_rule_enabled_permanent(zone, rule):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    fw_settings.addRichRule(rule)
-    fw_zone.update(fw_settings)
-
-def set_rich_rule_disabled_permanent(zone, rule):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    fw_settings.removeRichRule(rule)
-    fw_zone.update(fw_settings)
-
-####################
-# masquerade handling
-#
-def get_masquerade_enabled(zone):
-    return fw.queryMasquerade(zone)
-
-def set_masquerade_enabled(zone):
-    fw.addMasquerade(zone)
-
-def set_masquerade_disabled(zone):
-    fw.removeMasquerade(zone)
-
-def get_masquerade_enabled_permanent(zone):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    return fw_settings.getMasquerade()
-
-def set_masquerade_enabled_permanent(zone):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    fw_settings.setMasquerade(True)
-    fw_zone.update(fw_settings)
-
-def set_masquerade_disabled_permanent(zone):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    fw_settings.setMasquerade(False)
-    fw_zone.update(fw_settings)
-
-####################
-# interface handling
-#
-def get_interface_enabled(zone):
-    if interface in fw.getInterfaces(zone):
-        return True
-    else:
-        return False
-
-def set_interface_enabled(zone):
-    fw.addInterface(zone)
-
-def set_interface_disabled(zone):
-    fw.removeInterface(zone)
-
-def get_interface_enabled_permanent(zone, interface):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    if interface in fw_settings.getInterfaces():
-        return True
-    else:
-        return False
-
-def set_interface_enabled_permanent(zone, interface):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    fw_settings.addInterface(interface)
-    fw_zone.update(fw_settings)
-
-def set_interface_disabled_permanent(zone, interface):
-    fw_zone = fw.config().getZoneByName(zone)
-    fw_settings = fw_zone.getSettings()
-    fw_settings.removeInterface(interface)
-    fw_zone.update(fw_settings)
+    fw_settings = fw_zone.getSettings()  
+    return getattr(fw_settings, method)(*args)
 
 ####################
 # reload handling
@@ -292,6 +162,87 @@ def do_reload():
 def do_complete_reload():
     fw.complete_reload()
 
+
+def action(
+        msgs,
+        module,
+
+        permanent_query,
+        permanent_enable,
+        permanent_disable,
+        running_query,
+        running_enable,
+        running_disable,
+
+        message,
+
+        args = None,
+        permanent_query_args = None,
+        permanent_enable_args = None,
+        permanent_disable_args = None,
+        running_query_args = None,
+        running_enable_args = None,
+        running_disable_args = None
+    ):
+
+    if module.params['state'] == 'enabled':
+        desired_state = True
+    else:
+        desired_state = False
+    permanent = module.params['permanent']
+    immediate = module.params['immediate']
+
+    changed = False
+
+    if permanent or immediate:
+        msgs.append('Permanent operation')
+        if permanent_query_args != None:
+            is_enabled = permanent_query(*permanent_query_args)
+        else:
+            is_enabled = permanent_query(*args)
+
+        if desired_state != is_enabled:
+            if module.check_mode:
+                module.exit_json(changed=True)
+            else:
+                if desired_state:
+                    if permanent_enable_args != None:
+                        permanent_enable(*permanent_enable_args)
+                    else:
+                        permanent_enable(*args)
+                else:
+                    if permanent_disable_args != None:
+                        permanent_disable(*permanent_disable_args)
+                    else:
+                        permanent_disable(*args)
+            changed = True
+    else:
+        msgs.append('Non-permanent operation')
+        if running_query_args != None:
+            is_enabled = running_query(*args_query)
+        else:
+            is_enabled = running_query(*args)
+
+        if desired_state != is_enabled:
+            if module.check_mode:
+                module.exit_json(changed=True)
+            else:
+                if desired_state:
+                    if running_enable_args != None:
+                        running_enable(*running_enable_args)
+                    else:
+                        running_enable(*args)
+                else:
+                    if running_disable_args != None:
+                        running_disable(*running_disable_args)
+                    else:
+                        running_disable(*args)
+            changed = True
+    if changed:
+        msgs.append(message)
+    return changed
+
+
 def main():
 
     module = AnsibleModule(
@@ -300,7 +251,11 @@ def main():
             port=dict(required=False,default=None),
             rich_rule=dict(required=False,default=None),
             masquerade=dict(required=False,default=None),
+            source=dict(required=False,default=None),
             interface=dict(required=False,default=None),
+            icmp_block=dict(required=False,default=None),
+            to_port=dict(required=False,default=None),
+            to_addr=dict(required=False,default=None),
             zone=dict(required=False,default=None),
             permanent=dict(type='bool',required=True),
             immediate=dict(type='bool',default=False),
@@ -321,10 +276,16 @@ def main():
     ## Global Vars
     changed=False
     msgs = []
+
+
     service = module.params['service']
     masquerade = module.params['masquerade']
     rich_rule = module.params['rich_rule']
     interface = module.params['interface']
+    source = module.params['source']
+    to_addr = module.params['to_addr']
+    to_port = module.params['to_port']
+    icmp_block = module.params['icmp_block']
     reload = module.params['reload']
 
     if module.params['port'] != None:
@@ -352,7 +313,7 @@ def main():
         module.fail_json(msg="firewalld connection can't be established,\
                 version likely too old. Requires firewalld >= 2.0.11")
 
-    exclusive_operations = [ 'service', 'port', 'rich_rule', 'masquerade', 'interface' ]
+    exclusive_operations = [ 'service', 'port', 'rich_rule', 'masquerade', 'source', 'interface', 'icmp_block', 'forward']
     modification_count = sum(
         map(
             lambda x: module.params[x] != None,
@@ -364,213 +325,135 @@ def main():
         module.fail_json(msg='can only simultaneously operate on one of the following: %s' % (', '.join(exclusive_operations)))
 
 
+    def perform_action(**kwargs):
+        action(msgs, module, **kwargs)
 
     if service != None:
-        if permanent:
-            is_enabled = get_service_enabled_permanent(zone, service)
-            msgs.append('Permanent operation')
+        changed = perform_action(
+            message                = "Changed service %s to %s" % (service, desired_state),
+            args                   = (zone, service),
 
-            if desired_state == "enabled":
-                if is_enabled == False:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+            permanent_query        = lambda *x: permanent_config_query('queryService', *x),
+            running_query          = fw.queryService,
 
-                    set_service_enabled_permanent(zone, service)
-                    changed=True
-            elif desired_state == "disabled":
-                if is_enabled == True:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+            permanent_enable       = lambda *x: permanent_config_change('addService', *x),
+            permanent_disable      = lambda *x: permanent_config_change('removeService', *x),
 
-                    set_service_disabled_permanent(zone, service)
-                    changed=True
-        if immediate or not permanent:
-            is_enabled = get_service_enabled(zone, service)
-            msgs.append('Non-permanent operation')
-
-
-            if desired_state == "enabled":
-                if is_enabled == False:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
-
-                    set_service_enabled(zone, service, timeout)
-                    changed=True
-            elif desired_state == "disabled":
-                if is_enabled == True:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
-
-                    set_service_disabled(zone, service)
-                    changed=True
-
-        if changed == True:
-            msgs.append("Changed service %s to %s" % (service, desired_state))
+            running_enable         = fw.addService,
+            running_enable_args    = (zone, service, timeout),
+            running_disable        = fw.removeService
+        )
 
     if port != None:
-        if permanent:
-            is_enabled = get_port_enabled_permanent(zone, [port, protocol])
-            msgs.append('Permanent operation')
+        changed = perform_action(
+            message                = "Changed port %s to %s" % ("%s/%s" % (port, protocol), desired_state),
+            args                   = (zone, port, protocol),
 
-            if desired_state == "enabled":
-                if is_enabled == False:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+            permanent_query        = lambda *x: permanent_config_query('queryPort', *x),
+            running_query          = fw.queryPort,
 
-                    set_port_enabled_permanent(zone, port, protocol)
-                    changed=True
-            elif desired_state == "disabled":
-                if is_enabled == True:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+            permanent_enable       = lambda *x: permanent_config_change('addPort', *x),
+            permanent_disable      = lambda *x: permanent_config_change('removePort', *x),
 
-                    set_port_disabled_permanent(zone, port, protocol)
-                    changed=True
-        if immediate or not permanent:
-            is_enabled = get_port_enabled(zone, [port,protocol])
-            msgs.append('Non-permanent operation')
-
-            if desired_state == "enabled":
-                if is_enabled == False:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
-
-                    set_port_enabled(zone, port, protocol, timeout)
-                    changed=True
-            elif desired_state == "disabled":
-                if is_enabled == True:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
-
-                    set_port_disabled(zone, port, protocol)
-                    changed=True
-
-        if changed == True:
-            msgs.append("Changed port %s to %s" % ("%s/%s" % (port, protocol), \
-                        desired_state))
+            running_enable         = fw.addPort,
+            running_enable_args    = (zone, port, protocol, timeout),
+            running_disable        = fw.removePort
+        )
 
     if rich_rule != None:
-        if permanent:
-            is_enabled = get_rich_rule_enabled_permanent(zone, rich_rule)
-            msgs.append('Permanent operation')
+        changed = perform_action(
+            message                = "Changed rich_rule %s to %s" % (rich_rule, desired_state),
+            args                   = (zone, rich_rule),
 
-            if desired_state == "enabled":
-                if is_enabled == False:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+            permanent_query        = lambda *x: permanent_config_query('queryRichRule', *x),
+            running_query          = fw.queryRichRule,
 
-                    set_rich_rule_enabled_permanent(zone, rich_rule)
-                    changed=True
-            elif desired_state == "disabled":
-                if is_enabled == True:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+            permanent_enable       = lambda *x: permanent_config_change('addRichRule', *x),
+            permanent_disable      = lambda *x: permanent_config_change('removeRichRule', *x),
 
-                    set_rich_rule_disabled_permanent(zone, rich_rule)
-                    changed=True
-        if immediate or not permanent:
-            is_enabled = get_rich_rule_enabled(zone, rich_rule)
-            msgs.append('Non-permanent operation')
-
-            if desired_state == "enabled":
-                if is_enabled == False:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
-
-                    set_rich_rule_enabled(zone, rich_rule, timeout)
-                    changed=True
-            elif desired_state == "disabled":
-                if is_enabled == True:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
-
-                    set_rich_rule_disabled(zone, rich_rule)
-                    changed=True
-
-        if changed == True:
-            msgs.append("Changed rich_rule %s to %s" % (rich_rule, desired_state))
+            running_enable         = fw.addRichRule,
+            running_enable_args    = (zone, rule, timeout),
+            running_disable        = fw.removeRichRule
+        )
 
     if masquerade != None:
-        if permanent:
-            is_enabled = get_masquerade_enabled_permanent(zone)
-            msgs.append('Permanent operation')
+        changed = perform_action(
+            message                = "Changed masquerade to %s" % (desired_state),
+            args                   = (zone),
 
-            if desired_state == "enabled":
-                if is_enabled == False:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+            permanent_query        = lambda *x: permanent_config_query('queryMasquerade', *x),
+            running_query          = fw.queryMasquerade,
 
-                    set_masquerade_enabled_permanent(zone)
-                    changed=True
-            elif desired_state == "disabled":
-                if is_enabled == True:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+            permanent_enable       = lambda *x: permanent_config_change('setMasquerade', *x),
+            permanent_enable_args  = (zone, True),
+            permanent_disable      = lambda *x: permanent_config_change('setMasquerade', *x),
+            permanent_disable_args = (zone, False),
 
-                    set_masquerade_disabled_permanent(zone)
-                    changed=True
-        if immediate or not permanent:
-            is_enabled = get_masquerade_enabled(zone)
-            msgs.append('Non-permanent operation')
-
-            if desired_state == "enabled":
-                if is_enabled == False:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
-
-                    set_masquerade_enabled(zone)
-                    changed=True
-            elif desired_state == "disabled":
-                if is_enabled == True:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
-
-                    set_masquerade_disabled(zone)
-                    changed=True
-
-        if changed == True:
-            msgs.append("Changed masquerade to %s" % (desired_state))
+            running_enable         = fw.addMasquerade,
+            running_disable        = fw.removeMasquerade
+        )
 
     if interface != None:
-        if permanent:
-            is_enabled = get_interface_enabled_permanent(zone, interface)
-            msgs.append('Permanent operation')
+        changed = perform_action(
+            message                = "Changed interface %s to %s" % (interface, desired_state),
+            args                   = (zone, interface),
 
-            if desired_state == "enabled":
-                if is_enabled == False:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+            permanent_query        = lambda *x: permanent_config_query('queryInterface', *x),
+            running_query          = fw.queryInterface,
 
-                    set_interface_enabled_permanent(zone, interface)
-                    changed=True
-            elif desired_state == "disabled":
-                if is_enabled == True:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+            permanent_enable       = lambda *x: permanent_config_change('addInterface', *x),
+            permanent_disable      = lambda *x: permanent_config_change('removeInterface', *x),
 
-                    set_interface_disabled_permanent(zone, interface)
-                    changed=True
-        if immediate or not permanent:
-            is_enabled = get_interface_enabled(zone, interface)
-            msgs.append('Non-permanent operation')
+            running_enable         = fw.addInterface,
+            running_disable        = fw.removeInterface
+        )
 
-            if desired_state == "enabled":
-                if is_enabled == False:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+    if source != None:
+        changed = perform_action(
+            message                = "Changed source %s to %s" % (source, desired_state),
+            args                   = (zone, source),
 
-                    set_interface_enabled(zone, interface)
-                    changed=True
-            elif desired_state == "disabled":
-                if is_enabled == True:
-                    if module.check_mode:
-                        module.exit_json(changed=True)
+            permanent_query        = lambda *x: permanent_config_query('querySource', *x),
+            running_query          = fw.querySource,
 
-                    set_interface_disabled(zone, interface)
-                    changed=True
+            permanent_enable       = lambda *x: permanent_config_change('addSource', *x),
+            permanent_disable      = lambda *x: permanent_config_change('removeSource', *x),
 
-        if changed == True:
-            msgs.append("Changed interface %s to %s" % (interface, desired_state))
+            running_enable         = fw.addSource,
+            running_disable        = fw.removeSource
+        )
+
+    if icmp_block != None:
+        changed = perform_action(
+            message                = "Changed icmp_block %s to %s" % (icmp_block, desired_state),
+            args                   = (zone, icmp_block),
+
+            permanent_query        = lambda *x: permanent_config_query('queryIcmpBlock', *x),
+            running_query          = fw.getIcmpBlock,
+
+            permanent_enable       = lambda *x: permanent_config_change('addIcmpBlock', *x),
+            permanent_disable      = lambda *x: permanent_config_change('removeIcmpBlock', *x),
+
+            running_enable         = fw.addIcmpBlock,
+            running_enable_args    = (zone, icmp_block, timeout),
+            running_disable        = fw.removeIcmpBlock
+        )
+
+    if forward != None:
+        changed = perform_action(
+            message                = "Changed forward %s/%s from %s to %s to state %s" % (port, protocol, to_port, to_addr, desired_state),
+            args                   = (zone, port, protocol, to_port, to_addr),
+
+            permanent_query        = lambda *x: permanent_config_query('queryForwardPort', *x),
+            running_query          = fw.queryForwardPort,
+
+            permanent_enable       = lambda *x: permanent_config_change('addForwardPort', *x),
+            permanent_disable      = lambda *x: permanent_config_change('removeForwardPort', *x),
+
+            running_enable         = fw.addForwardPort,
+            running_enable_args    = (zone, port, protocol, to_port, to_addr, timeout),
+            running_disable        = fw.removeForwardPort
+        )
 
     if reload != None:
         if module.check_mode:
