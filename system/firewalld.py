@@ -47,36 +47,43 @@ options:
       - "Anything, just to indicate operation on masquerade configuration"
     required: false
     default: null
+    version_added: "2.0"
   source:
     description:
       - "Source address to add/remove to/from firewalld"
     required: false
     default: null
+    version_added: "2.0"
   interface:
     description:
       - "Name of a interface to add/remove to/from firewalld"
     required: false
     default: null
+    version_added: "2.0"
   icmp_block:
     description:
       - "Name of a ICMP packet type to block/unblock."
     required: false
     default: null
+    version_added: "2.0"
   forward:
     description:
       - "Name of a port to forward from to add/remove to/from firewalld must be in the form PORT/PROTOCOL"
     required: false
     default: null
+    version_added: "2.0"
   to_addr:
     description:
       - "Forward destination IP address"
     required: false
     default: null
+    version_added: "2.0"
   to_port:
     description:
       - "Forward destination port"
     required: false
     default: null
+    version_added: "2.0"
   zone:
     description:
       - 'The firewalld zone to add/remove to/from (NOTE: default zone can be configured per system but "public" is default from upstream. Available choices can be extended based on per-system configs, listed here are "out of the box" defaults).'
@@ -108,6 +115,7 @@ options:
     required: false
     default: null
     choices: [ "config", "complete" ]
+    version_added: "2.0"
 notes:
   - Not tested on any Debian based system.
 requirements: [ 'firewalld >= 0.2.11' ]
